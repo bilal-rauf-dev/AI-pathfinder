@@ -5,7 +5,6 @@ import random
 from collections import deque
 
 # --- IMPORT ALGORITHMS ---
-# Make sure algorithms.py is in the same folder!
 try:
     from algorithms import bfs, dfs, ucs, dls_iterative, iddfs, bidirectional_search
 except ImportError:
@@ -39,8 +38,8 @@ class Node:
 
     def get_neighbors(self, grid):
         """
-        Returns neighbors in strict clockwise order:
-        Up, Top-Right, Right, Bottom-Right, Bottom, Bottom-Left, Left, Top-Left.
+        Returns neighbors in strict clockwise order.
+        Takes ONLY 'grid' as argument (rows/cols derived from grid len).
         """
         neighbors = []
         directions = [
@@ -65,7 +64,7 @@ class PathfinderApp:
         self.canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg="white")
         self.canvas.pack()
 
-        # 2. Initialize Grid (CRITICAL STEP - DO NOT REMOVE)
+        # 2. Initialize Grid
         self.grid = [[Node(r, c) for c in range(COLS)] for r in range(ROWS)]
         
         # 3. Setup Start and Target
@@ -78,18 +77,16 @@ class PathfinderApp:
         self.draw_grid()
         
         # 5. Bind Inputs
-        self.canvas.bind("<Button-1>", self.handle_click) # Mouse click
-        self.root.bind("<Key>", self.handle_keypress)     # Keyboard press
+        self.canvas.bind("<Button-1>", self.handle_click)
+        self.root.bind("<Key>", self.handle_keypress)
         self.root.focus_set()
 
     def draw_grid(self):
-        """Redraws the entire grid."""
         self.canvas.delete("all")
         for r in range(ROWS):
             for c in range(COLS):
                 node = self.grid[r][c]
                 color = COLOR_EMPTY
-                
                 if node.state == "WALL": color = COLOR_WALL
                 elif node.state == "START": color = COLOR_START
                 elif node.state == "TARGET": color = COLOR_TARGET
@@ -104,13 +101,11 @@ class PathfinderApp:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
 
     def update_gui(self):
-        """Called by algorithms to animate."""
         self.draw_grid()
         self.root.update()
-        # time.sleep(0.02) # Uncomment to slow down animation
+        # time.sleep(0.02) 
 
     def reset_grid(self):
-        """Clears search results but keeps walls."""
         for r in range(ROWS):
             for c in range(COLS):
                 node = self.grid[r][c]
@@ -121,7 +116,6 @@ class PathfinderApp:
         self.draw_grid()
 
     def handle_click(self, event):
-        """Toggle walls with mouse."""
         row = event.y // CELL_SIZE
         col = event.x // CELL_SIZE
         if 0 <= row < ROWS and 0 <= col < COLS:
@@ -133,8 +127,7 @@ class PathfinderApp:
             self.draw_grid()
 
     def handle_keypress(self, event):
-        """Run algorithms on key press."""
-        print(f"Key pressed: {event.char}") # Debugging
+        print(f"Key pressed: {event.char}")
         
         if event.char in "123456r":
             self.reset_grid()
@@ -154,100 +147,73 @@ class PathfinderApp:
         elif event.char == 'r':
             self.reset_grid()
         elif event.char == 'd':
-            # Run dynamic movement on the current path
             self.run_dynamic_movement()
 
     def reset_keep_walls(self):
-        """Clears search states but KEEPS walls and Start/Target."""
         for r in range(ROWS):
             for c in range(COLS):
                 node = self.grid[r][c]
-                # Reset only temporary states
                 if node.state in ["FRONTIER", "EXPLORED", "PATH"]:
                     node.state = "EMPTY"
                     node.parent = None
                     node.cost = float('inf')
-        
-        # Ensure Start/Target are preserved
         self.start_node.state = "START"
         self.target_node.state = "TARGET"
         self.draw_grid()
 
     def run_dynamic_movement(self):
-        """
-        Simulates the agent moving. Spawns random walls.
-        Triggers re-planning if the path is blocked.
-        """
-        # 1. Reconstruct the path from Target -> Start
         path = []
         curr = self.target_node
         while curr.parent:
             path.append(curr)
             curr = curr.parent
         path.append(self.start_node)
-        path.reverse() # Now it is Start -> Target
+        path.reverse()
 
         print(f"Starting dynamic run. Path length: {len(path)}")
 
-        # 2. Move along the path
         for i, next_node in enumerate(path):
             if next_node == self.start_node: continue
             
-            # --- A. Random Obstacle Event ---
-            # Increased chance to 30% (0.3) just to make sure you see it working
+            # --- Random Obstacle Event ---
             if random.random() < 0.3:  
                 rx, ry = random.randint(0, ROWS-1), random.randint(0, COLS-1)
                 random_node = self.grid[rx][ry]
-                
-                # FIXED: Allow walls to spawn on Empty, Explored, or Path nodes
                 valid_states = ["EMPTY", "EXPLORED", "FRONTIER", "PATH"]
                 
-                # Don't spawn on top of the agent (Start), Target, or existing Walls
                 if random_node.state in valid_states and random_node != self.start_node and random_node != self.target_node:
                     random_node.state = "WALL"
-                    print(f"🧱 Wall spawned at ({rx}, {ry})") # Debug print
+                    print(f"🧱 Wall spawned at ({rx}, {ry})")
                     self.draw_grid()
                     self.root.update()
 
-            # --- B. Check for Blockage ---
-            # If the next node in our path has turned into a WALL
+            # --- Check for Blockage ---
             if next_node.state == "WALL":
                 print("⚠️ PATH BLOCKED! Re-planning...")
-                
-                # Get current position (the node before the blockage)
                 current_pos = path[i-1] 
-                
-                # Clear old path visually, but keep walls
                 self.reset_keep_walls()
                 
-                # Re-run Search (Using BFS as the default fallback)
-                # We search from Current Position -> Target
                 from algorithms import bfs
                 found = bfs(self.update_gui, self.grid, current_pos, self.target_node)
                 
                 if found:
                     print("✅ New path found! Resuming...")
-                    # Recursively call this function to move along the NEW path
                     self.run_dynamic_movement() 
                     return
                 else:
                     print("❌ Stuck! No path possible.")
                     return
 
-            # --- C. Move Agent ---
-            # Visual: Mark previous spot as explored
+            # --- Move Agent ---
             if path[i-1] != self.start_node and path[i-1] != self.target_node:
                 path[i-1].state = "EXPLORED"
-            
-            # Visual: Show agent on next node (Green)
             if next_node != self.target_node:
                 next_node.state = "START" 
             
             self.draw_grid()
             self.root.update()
-            time.sleep(0.1) # Movement speed
+            time.sleep(0.1)
 
-# --- ENTRY POINT ---
 if __name__ == "__main__":
     root = tk.Tk()
     app = PathfinderApp(root)
