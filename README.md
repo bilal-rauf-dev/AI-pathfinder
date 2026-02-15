@@ -26,13 +26,13 @@ This project uses **Python** and requires a GUI library (e.g., Pygame, Matplotli
 
 ### Prerequisites
 * Python 3.x
-* [Your Library Name, e.g., Pygame]
+* Chosen Library Name, e.g., Pygame (WIP)
 
 ### Setup
 1.  **Clone the Repository:**
     ```bash
-    git clone [https://github.com/](https://github.com/)[YourUsername]/AI_A1_22F_XXXX.git
-    cd AI_A1_22F_XXXX
+    git clone [https://github.com/](https://github.com/)[YourUsername]/AI-Pathfinder.git
+    cd AI-Pathfinder
     ```
 
 2.  **Install Dependencies:**
