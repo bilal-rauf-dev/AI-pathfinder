@@ -162,57 +162,96 @@ class PathfinderApp:
         self.draw_grid()
 
     def run_dynamic_movement(self):
-        path = []
-        curr = self.target_node
-        while curr.parent:
-            path.append(curr)
-            curr = curr.parent
-        path.append(self.start_node)
-        path.reverse()
-
-        print(f"Starting dynamic run. Path length: {len(path)}")
-
-        for i, next_node in enumerate(path):
-            if next_node == self.start_node: continue
+        """
+        Moves the agent along the path. 
+        If blocked, it re-plans and continues WITHOUT recursion.
+        """
+        # We loop until we reach the target or get stuck
+        while self.start_node != self.target_node:
             
-            # --- Random Obstacle Event ---
-            if random.random() < 0.3:  
-                rx, ry = random.randint(0, ROWS-1), random.randint(0, COLS-1)
-                random_node = self.grid[rx][ry]
-                valid_states = ["EMPTY", "EXPLORED", "FRONTIER", "PATH"]
-                
-                if random_node.state in valid_states and random_node != self.start_node and random_node != self.target_node:
-                    random_node.state = "WALL"
-                    print(f"🧱 Wall spawned at ({rx}, {ry})")
-                    self.draw_grid()
-                    self.root.update()
-
-            # --- Check for Blockage ---
-            if next_node.state == "WALL":
-                print("⚠️ PATH BLOCKED! Re-planning...")
-                current_pos = path[i-1] 
-                self.reset_keep_walls()
-                
-                from algorithms import bfs
-                found = bfs(self.update_gui, self.grid, current_pos, self.target_node)
-                
-                if found:
-                    print("✅ New path found! Resuming...")
-                    self.run_dynamic_movement() 
-                    return
-                else:
-                    print("❌ Stuck! No path possible.")
-                    return
-
-            # --- Move Agent ---
-            if path[i-1] != self.start_node and path[i-1] != self.target_node:
-                path[i-1].state = "EXPLORED"
-            if next_node != self.target_node:
-                next_node.state = "START" 
+            # 1. Reconstruct current path from Target -> Start
+            path = []
+            curr = self.target_node
             
-            self.draw_grid()
-            self.root.update()
-            time.sleep(0.1)
+            # Safety check: If no path exists, stop
+            if not curr.parent and curr != self.start_node:
+                print("❌ No path to target!")
+                return
+
+            while curr:
+                path.append(curr)
+                curr = curr.parent
+            path.reverse() # Now it is Start -> Target
+
+            # If path is just [Start], we are stuck or done
+            if len(path) <= 1:
+                break
+
+            print(f"Path found. Length: {len(path)}")
+
+            # 2. Move along the path
+            # We iterate through the path, but if we break (due to wall), 
+            # the outer 'while' loop triggers a re-plan.
+            path_blocked = False
+            
+            for i in range(len(path) - 1): # -1 because we look ahead
+                current_node = path[i]
+                next_node = path[i+1]
+
+                # --- Random Obstacle Event ---
+                if random.random() < 0.3:  
+                    rx, ry = random.randint(0, ROWS-1), random.randint(0, COLS-1)
+                    random_node = self.grid[rx][ry]
+                    valid_states = ["EMPTY", "EXPLORED", "FRONTIER", "PATH"]
+                    
+                    if random_node.state in valid_states and random_node != self.start_node and random_node != self.target_node:
+                        random_node.state = "WALL"
+                        self.draw_grid()
+                        self.root.update()
+
+                # --- Check if Next Step is Blocked ---
+                if next_node.state == "WALL":
+                    print("⚠️ PATH BLOCKED! Re-planning...")
+                    
+                    # Update Start Node to current position
+                    self.start_node = current_node 
+                    self.start_node.state = "START"
+
+                    # Clear invalid path visuals
+                    self.reset_keep_walls()
+
+                    # Re-run Search
+                    from algorithms import bfs
+                    found = bfs(self.update_gui, self.grid, self.start_node, self.target_node)
+                    
+                    if found:
+                        print("✅ New path found! Resuming...")
+                        path_blocked = True
+                        break # Break the for-loop, let outer while-loop handle new path
+                    else:
+                        print("❌ Stuck! No path possible.")
+                        return
+
+                # --- Move Agent ---
+                if current_node != self.target_node:
+                    current_node.state = "EXPLORED" # Mark trail
+                
+                # Update Start Node pointer as we move
+                self.start_node = next_node 
+                self.start_node.state = "START"
+                
+                self.draw_grid()
+                self.root.update()
+                time.sleep(0.1)
+                
+                # If we reached target, exit everything
+                if self.start_node == self.target_node:
+                    print("🏆 Target Reached!")
+                    return
+
+            # If we finished the path without blocking, we are done
+            if not path_blocked:
+                break
 
 if __name__ == "__main__":
     root = tk.Tk()
